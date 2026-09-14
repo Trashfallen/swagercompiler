@@ -189,10 +189,7 @@ function setFile(r) {
     $("file-path").textContent = r.path;
     $("file-text").title = r.path;
   }
-  const count = r && r.ok ? r.warnings.length : 0;
-  $("warn-chip").hidden = !(r && r.ok && count);
-  $("ok-chip").hidden = !(r && r.ok && !count);
-  $("warn-chip").textContent = `Замечания: ${count}`;
+  setIssues(r && r.ok ? r.warnings.length : null);
   $("btn-reload").disabled = !has;
   $("btn-save").disabled = !(r && r.ok);
   $("btn-browser").disabled = !(r && r.ok);
@@ -232,6 +229,13 @@ async function renderRecent() {
   });
 }
 
+/* count = null: файл не открыт или с ошибкой, счётчик не показываем */
+function setIssues(count) {
+  $("warn-chip").hidden = !count;
+  $("ok-chip").hidden = count !== 0;
+  $("warn-chip").textContent = `Замечания: ${count}`;
+}
+
 function showResult(r, keepScroll) {
   state.busy = false;
   if (!r) { if (!state.path) showScreen("welcome"); else if (!viewer.src) showScreen("welcome"); else showScreen("viewer"); return; }
@@ -250,9 +254,11 @@ function showResult(r, keepScroll) {
   viewer.onload = () => {
     const w = viewer.contentWindow;
     try {
-      if (scroll) w.scrollTo(0, scroll);
+      if (scroll) w.scrollTo({ top: scroll, behavior: "instant" });
       w.addEventListener("keydown", onKey);
       w.document.addEventListener("dragenter", showOverlay);
+      // полный список замечаний знает только страница: к ссылкам она добавляет примеры, не прошедшие проверку
+      setIssues(w.document.querySelectorAll("#issues .issues li").length);
     } catch (e) { /* пусто */ }
   };
   viewer.src = state.blobUrl;
