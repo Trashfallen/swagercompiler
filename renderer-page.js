@@ -7,6 +7,7 @@ const SERVERS = Array.isArray(SPEC.servers) && SPEC.servers.length ? SPEC.server
 const SCHEMES = COMP.securitySchemes || {};
 const SCHEMAS = COMP.schemas || {};
 const IN_ORDER = { path: 0, query: 1, header: 2, cookie: 3 };
+const sub = (base, ...keys) => (base ? [...base, ...keys.map(String)] : null);
 
 function section(id, title, lead) {
   const s = el("section");
@@ -32,19 +33,33 @@ const usedIds = new Set();
 for (const [path, rawItem] of Object.entries(SPEC.paths || {})) {
   const item = deref(rawItem);
   if (item["x-unresolved-ref"]) { unresolvedPaths.push({ path, ref: item["x-unresolved-ref"], error: item["x-ref-error"] }); continue; }
+  const itemBase = editBase(rawItem, ["paths", path]);
   for (const method of METHODS) {
     const op = item[method];
     if (!op) continue;
+    const opBase = sub(itemBase, method);
     const params = [];
-    [...(item.parameters || []), ...(op.parameters || [])].map(deref).forEach(p => {
+    const paramEdits = [];
+    const entries = [
+      ...(item.parameters || []).map((raw, i) => ({ raw, base: sub(itemBase, "parameters", i) })),
+      ...(op.parameters || []).map((raw, i) => ({ raw, base: sub(opBase, "parameters", i) })),
+    ];
+    entries.forEach(({ raw, base }) => {
+      const p = deref(raw);
       const i = params.findIndex(x => x.name === p.name && x.in === p.in);
-      if (i >= 0) params[i] = p; else params.push(p);
+      const edit = editBase(raw, base);
+      if (i >= 0) { params[i] = p; paramEdits[i] = edit; } else { params.push(p); paramEdits.push(edit); }
     });
-    params.sort((a, b) => (IN_ORDER[a.in] ?? 9) - (IN_ORDER[b.in] ?? 9));
+    const order = params.map((p, i) => i).sort((a, b) => (IN_ORDER[params[a].in] ?? 9) - (IN_ORDER[params[b].in] ?? 9));
     let id = `op-${method}-${path.replace(/[^\w]+/g, "-").replace(/^-|-$/g, "")}`;
     while (usedIds.has(id)) id += "_";
     usedIds.add(id);
-    ops.push({ path, method, op, params, id, tag: op.tags && op.tags.length ? op.tags[0] : null });
+    ops.push({
+      path, method, op, id, base: opBase,
+      params: order.map(i => params[i]),
+      paramEdits: order.map(i => paramEdits[i]),
+      tag: op.tags && op.tags.length ? op.tags[0] : null,
+    });
   }
 }
 
@@ -235,23 +250,24 @@ function builderBlock(o, rb) {
 }
 
 /* ---------- блоки метода ---------- */
-function paramsBlock(params) {
-  const rows = params.map(p => {
+function paramsBlock(params, edits) {
+  const rows = params.map((p, i) => {
     if (p["x-unresolved-ref"]) return `<tr><td colspan="4">${descHtml(p)}</td></tr>`;
     const schema = p.schema || (p.content ? (Object.values(p.content)[0] || {}).schema : null) || {};
     let flags = `<span class="f-flag">${esc(p.in)}</span>`;
     if (p.required) flags += '<span class="f-flag req">обязательный</span>';
     if (p.deprecated) flags += '<span class="f-flag">устарел</span>';
-    const desc = [md(p.description || flatten(schema).description)];
     const ex = paramExample(p);
-    if (ex !== undefined) desc.push(`<span class="ex">Пример: <code>${esc(typeof ex === "string" ? ex : JSON.stringify(ex))}</code></span>`);
-    return `<tr><td class="f-name">${esc(p.name)}${flags}</td><td class="f-type">${typeHtml(schema)}</td><td class="f-cons">${consHtml(schema)}</td><td class="f-desc">${desc.join("") || DASH}</td></tr>`;
+    const exHtml = ex !== undefined ? `<span class="ex">Пример: <code>${esc(typeof ex === "string" ? ex : JSON.stringify(ex))}</code></span>` : "";
+    const desc = editableMd(p.description || flatten(schema).description, sub(edits[i], "description"), "Описание параметра", "описание", exHtml ? "" : DASH);
+    return `<tr><td class="f-name">${esc(p.name)}${flags}</td><td class="f-type">${typeHtml(schema)}</td><td class="f-cons">${consHtml(schema)}</td><td class="f-desc">${desc}${exHtml}</td></tr>`;
   }).join("");
   return el("div", "block", `<div class="block-head"><h3>Параметры</h3><span class="tag">${params.length}</span></div>`
     + `<div class="tbl-wrap"><table><thead><tr><th>Имя</th><th>Тип</th><th>Значения и ограничения</th><th>Описание</th></tr></thead><tbody>${rows}</tbody></table></div>`);
 }
 
-function contentView(content, mode) {
+// base - путь объекта content в файле
+function contentView(content, mode, base) {
   const wrap = el("div", "ex-mount");
   const types = Object.keys(content || {});
   if (!types.length) { wrap.innerHTML = '<p class="muted">Тело не описано.</p>'; return wrap; }
@@ -261,7 +277,7 @@ function contentView(content, mode) {
     panel.innerHTML = "";
     if (mt.schema) {
       const name = schemaName(mt.schema);
-      panel.appendChild(el("div", "block", `<div class="sub">Схема${name ? ` <span style="text-transform:none;letter-spacing:0">· ${mlink(name)}</span>` : ""}</div>${schemaTable(mt.schema, true)}`));
+      panel.appendChild(el("div", "block", `<div class="sub">Схема${name ? ` <span style="text-transform:none;letter-spacing:0">· ${mlink(name)}</span>` : ""}</div>${schemaTable(mt.schema, true, sub(base, t, "schema"))}`));
     }
     const exBlock = el("div", "block", '<div class="sub">Примеры</div>');
     const mount = el("div", "ex-mount");
@@ -284,11 +300,11 @@ function contentView(content, mode) {
   return wrap;
 }
 
-function requestBlock(rb) {
+function requestBlock(rb, base) {
   const types = Object.keys(rb.content || {});
   const b = el("div", "block", `<div class="block-head"><h3>Тело запроса</h3>${rb.required ? '<span class="tag req">обязательно</span>' : '<span class="tag">необязательно</span>'}${types.length ? `<span class="tag">${esc(types.join(", "))}</span>` : ""}</div>`
-    + (rb["x-unresolved-ref"] ? descHtml(rb) : md(rb.description)));
-  if (!rb["x-unresolved-ref"]) b.appendChild(contentView(rb.content, "request"));
+    + (rb["x-unresolved-ref"] ? descHtml(rb) : editableMd(rb.description, sub(base, "description"), "Описание тела запроса", "описание тела запроса")));
+  if (!rb["x-unresolved-ref"]) b.appendChild(contentView(rb.content, "request", sub(base, "content")));
   return b;
 }
 
@@ -300,18 +316,20 @@ function headersTable(headers) {
   return `<div class="sub">Заголовки ответа</div><div class="tbl-wrap"><table><thead><tr><th>Заголовок</th><th>Тип</th><th>Описание</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
-function responsesBlock(responses) {
+function responsesBlock(responses, base) {
   const codes = Object.keys(responses || {});
   const b = el("div", "block", `<div class="block-head"><h3>Ответы</h3><span class="tag">${esc(codes.join(" · ") || "не описаны")}</span></div>`);
   const list = el("div", "resps");
   codes.forEach((code, i) => {
-    const r = deref(responses[code]);
+    const raw = responses[code];
+    const r = deref(raw);
+    const rBase = editBase(raw, sub(base, code));
     const types = Object.keys(r.content || {});
     const name = types.length && r.content[types[0]].schema ? schemaName(r.content[types[0]].schema) : null;
     const d = el("details", "resp");
     d.open = i === 0;
     d.innerHTML = `<summary><span class="code-pill ${/^[1-5]/.test(code) ? "c" + code[0] : ""}">${esc(code)}</span>`
-      + `<span class="resp-desc">${esc(firstLine(r.description) || (r["x-unresolved-ref"] ? "не подключено" : ""))}</span>`
+      + `<span class="resp-desc"${editAttrs(sub(rBase, "description"), "Описание ответа")}>${esc(firstLine(r.description) || (r["x-unresolved-ref"] ? "не подключено" : ""))}</span>`
       + (types.length ? `<span class="resp-ct">${esc(types.join(", "))}${name ? " · " + esc(name) : ""}</span>` : "")
       + `${CHEV}</summary>`;
     const body = el("div", "resp-body");
@@ -320,7 +338,7 @@ function responsesBlock(responses) {
       if (r["x-unresolved-ref"]) { body.innerHTML = descHtml(r); return; }
       if (String(r.description || "").includes("\n")) body.appendChild(el("div", "", md(r.description)));
       if (r.headers && Object.keys(r.headers).length) body.appendChild(el("div", "block", headersTable(r.headers)));
-      if (types.length) body.appendChild(contentView(r.content, "response"));
+      if (types.length) body.appendChild(contentView(r.content, "response", sub(rBase, "content")));
       else body.appendChild(el("p", "muted", "Ответ без тела."));
     });
     list.appendChild(d);
@@ -336,7 +354,7 @@ function renderOp(o, open) {
   d.open = open;
   const sec = securityLabel(opSecurity(op));
   d.innerHTML = `<summary><span class="method">${method.toUpperCase()}</span><span class="op-path">${esc(path)}</span>`
-    + (op.summary ? `<span class="op-summary">${esc(op.summary)}</span>` : "")
+    + (op.summary ? `<span class="op-summary"${editAttrs(sub(o.base, "summary"), "Краткое описание метода")}>${esc(op.summary)}</span>` : "")
     + (op.deprecated ? '<span class="badge warn">устарел</span>' : "")
     + (sec ? `<span class="lock">${LOCK}${esc(sec)}</span>` : "")
     + `${CHEV}</summary>`;
@@ -347,14 +365,16 @@ function renderOp(o, open) {
     if (op.operationId) meta.push(`operationId: <code>${esc(op.operationId)}</code>`);
     if (op.tags && op.tags.length) meta.push(`Теги: ${op.tags.map(t => `<code>${esc(t)}</code>`).join(" ")}`);
     if (op.externalDocs && op.externalDocs.url) meta.push(`<a href="${esc(op.externalDocs.url)}" target="_blank" rel="noopener">${esc(op.externalDocs.description || "Документация")}</a>`);
-    if (op.description || meta.length) {
-      body.appendChild(el("div", "block", md(op.description) + (meta.length ? `<div class="op-meta">${meta.map(m => `<span>${m}</span>`).join("")}</div>` : "")));
+    const addSummary = !op.summary && o.base ? editableMd("", sub(o.base, "summary"), "Краткое описание метода", "краткое описание") : "";
+    const desc = editableMd(op.description, sub(o.base, "description"), "Описание метода", "описание метода");
+    if (desc || addSummary || meta.length) {
+      body.appendChild(el("div", "block", addSummary + desc + (meta.length ? `<div class="op-meta">${meta.map(m => `<span>${m}</span>`).join("")}</div>` : "")));
     }
-    if (o.params.length) body.appendChild(paramsBlock(o.params));
+    if (o.params.length) body.appendChild(paramsBlock(o.params, o.paramEdits));
     const rb = op.requestBody ? deref(op.requestBody) : null;
-    if (rb) body.appendChild(requestBlock(rb));
+    if (rb) body.appendChild(requestBlock(rb, editBase(op.requestBody, sub(o.base, "requestBody"))));
     body.appendChild(builderBlock(o, rb));
-    body.appendChild(responsesBlock(op.responses));
+    body.appendChild(responsesBlock(op.responses, sub(o.base, "responses")));
   });
   return d;
 }
@@ -397,6 +417,7 @@ function navLink(href, html, cls, search) {
 }
 
 /* ---------- обзор ---------- */
+const infoBase = editBase(INFO, ["info"]);
 const brand = document.getElementById("brand");
 brand.innerHTML = `<span class="brand-kicker">OpenAPI ${esc(SPEC.openapi || "")}${INFO.version ? " · v" + esc(INFO.version) : ""}</span><span class="brand-name">${esc(INFO.title || META.source || "API")}</span>`;
 
@@ -413,9 +434,10 @@ if (c.email || c.url || c.name) {
   facts.push(["Контакт", [c.name && esc(c.name), c.email && `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>`, c.url && `<a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.url)}</a>`].filter(Boolean).join("<br>")]);
 }
 if (INFO.license && INFO.license.name) facts.push(["Лицензия", esc(INFO.license.name)]);
+const lede = editableMd(INFO.description, sub(infoBase, "description"), "Описание API", "описание API");
 intro.innerHTML = `<p class="eyebrow">OpenAPI ${esc(SPEC.openapi || "")}${INFO.version ? " · версия " + esc(INFO.version) : ""}</p>`
-  + `<h1>${esc(INFO.title || META.source || "API")}</h1>`
-  + (INFO.description ? `<div class="lede">${md(INFO.description)}</div>` : "")
+  + `<h1${editAttrs(sub(infoBase, "title"), "Название API")}>${esc(INFO.title || META.source || "API")}</h1>`
+  + (lede ? `<div class="lede">${lede}</div>` : "")
   + `<dl class="facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("")}</dl>`
   + (SPEC.externalDocs && SPEC.externalDocs.url ? `<p><a href="${esc(SPEC.externalDocs.url)}" target="_blank" rel="noopener">${esc(SPEC.externalDocs.description || "Внешняя документация")}</a></p>` : "");
 mainEl.appendChild(intro);
@@ -426,8 +448,10 @@ if (schemeNames.length) {
   const global = securityLabel(SPEC.security);
   const s = section("auth", "Авторизация", global ? `<p>По умолчанию для всех методов: ${esc(global)}.</p>` : "");
   const rows = schemeNames.map(n => {
-    const sc = deref(SCHEMES[n]);
-    return `<tr><td class="f-name">${esc(n)}</td><td class="f-type">${esc(sc.type || "")}</td><td class="f-cons">${schemeDetails(sc)}</td><td class="f-desc">${md(sc.description) || DASH}</td></tr>`;
+    const raw = SCHEMES[n];
+    const sc = deref(raw);
+    const desc = editableMd(sc.description, sub(editBase(raw, ["components", "securitySchemes", n]), "description"), "Описание схемы авторизации", "описание", DASH);
+    return `<tr><td class="f-name">${esc(n)}</td><td class="f-type">${esc(sc.type || "")}</td><td class="f-cons">${schemeDetails(sc)}</td><td class="f-desc">${desc}</td></tr>`;
   }).join("");
   s.appendChild(el("div", "tbl-wrap", `<table><thead><tr><th>Схема</th><th>Тип</th><th>Параметры</th><th>Описание</th></tr></thead><tbody>${rows}</tbody></table>`));
   const examples = [...new Set(schemeNames.map(n => schemeHeaderExample(deref(SCHEMES[n]))).filter(Boolean))];
@@ -437,7 +461,7 @@ if (schemeNames.length) {
 
 /* ---------- методы ---------- */
 const opsSection = section("operations", "Методы", `<p>${ops.length} ${ops.length === 1 ? "метод" : ops.length < 5 ? "метода" : "методов"}${ops.length > 3 ? ". Нажмите на метод, чтобы раскрыть." : "."}</p>`);
-const tagInfo = new Map((SPEC.tags || []).map(t => [t.name, t]));
+const tagIndex = new Map((SPEC.tags || []).map((t, i) => [t.name, i]));
 const groups = new Map();
 (SPEC.tags || []).forEach(t => groups.set(t.name, []));
 ops.forEach(o => { if (!groups.has(o.tag)) groups.set(o.tag, []); groups.get(o.tag).push(o); });
@@ -446,8 +470,10 @@ const navGroups = [];
 
 for (const [tag, list] of groups) {
   if (!list.length) continue;
-  const t = tagInfo.get(tag) || {};
-  const g = el("div", "tag-group", `<div class="sec-head"><h3>${esc(tag ?? "Без тега")}</h3>${t.description ? md(t.description) : ""}</div>`);
+  const ti = tagIndex.get(tag);
+  const t = ti !== undefined ? SPEC.tags[ti] : {};
+  const tagDesc = editableMd(t.description, ti !== undefined ? editBase(t, ["tags", String(ti), "description"]) : null, "Описание тега", "описание тега");
+  const g = el("div", "tag-group", `<div class="sec-head"><h3>${esc(tag ?? "Без тега")}</h3>${tagDesc}</div>`);
   opsSection.appendChild(g);
   const label = navLabel(tag ?? "Без тега");
   const items = list.map(o => {
@@ -478,17 +504,19 @@ if (modelNames.length) {
   modelNames.forEach(name => {
     const raw = SCHEMAS[name];
     const sc = flatten(raw);
+    const mBase = editBase(raw, ["components", "schemas", name]);
     const d = el("details", "model");
     d.id = modelId(name);
     const kind = Array.isArray(sc.enum) ? `enum: ${sc.enum.map(v => (typeof v === "string" ? v : JSON.stringify(v))).join(", ")}`
       : sc.properties ? `поля: ${Object.keys(sc.properties).join(", ")}` : typeOf(sc);
     d.innerHTML = `<summary><span class="m-name">${esc(name)}</span><span class="m-type">${esc(kind)}</span>`
-      + (sc.description ? `<span class="m-desc">${esc(firstLine(sc.description))}</span>` : "") + `${CHEV}</summary>`;
+      + (sc.description ? `<span class="m-desc"${editAttrs(sub(mBase, "description"), "Описание модели")}>${esc(firstLine(sc.description))}</span>` : "") + `${CHEV}</summary>`;
     const body = el("div", "model-body");
     d.appendChild(body);
     lazyDetails(d, () => {
-      if (String(sc.description || "").includes("\n")) body.appendChild(el("div", "", md(sc.description)));
-      body.insertAdjacentHTML("beforeend", schemaTable(raw, false));
+      if (String(sc.description || "").includes("\n")) body.insertAdjacentHTML("beforeend", editableMd(sc.description, sub(mBase, "description"), "Описание модели"));
+      else if (!sc.description && mBase) body.insertAdjacentHTML("beforeend", editableMd("", sub(mBase, "description"), "Описание модели", "описание модели"));
+      body.insertAdjacentHTML("beforeend", schemaTable(raw, false, mBase));
       const ex = sc.example;
       if (ex !== undefined && typeof ex === "object" && ex !== null) body.insertAdjacentHTML("beforeend", `<div class="sub">Пример</div><pre class="code">${hl(ex)}</pre>`);
     });
@@ -552,3 +580,26 @@ const observer = new IntersectionObserver(entries => {
   });
 }, { rootMargin: "-10% 0px -80% 0px" });
 document.querySelectorAll("main > section, details.op").forEach(n => observer.observe(n));
+
+/* ---------- режим правки: включает окно программы ---------- */
+function editValue(path) {
+  let v = SPEC;
+  for (const k of path) {
+    if (v == null) return "";
+    v = v[k];
+  }
+  return typeof v === "string" ? v : "";
+}
+
+document.addEventListener("click", e => {
+  if (!document.documentElement.classList.contains("edit-mode")) return;
+  const t = e.target.closest("[data-edit]");
+  if (!t || (e.target.closest("a") && !t.classList.contains("edit-add"))) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const host = window.parent !== window ? window.parent.app : null;
+  const path = JSON.parse(t.dataset.edit);
+  if (host && host.editText) host.editText({ path, value: editValue(path), label: t.dataset.editLabel || "" });
+}, true);
+
+window.openapiEditMode = on => document.documentElement.classList.toggle("edit-mode", !!on);

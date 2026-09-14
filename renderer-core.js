@@ -127,6 +127,31 @@ function schemaName(node) {
 const modelId = name => "model-" + name.replace(/[^\w-]/g, "_");
 const mlink = name => `<a class="model-link" href="#${modelId(name)}">${esc(name)}</a>`;
 
+/* ---------- правка из окна программы ---------- */
+// Путь узла в редактируемом файле. null - узел пришёл из внешнего файла, его здесь не правим.
+function editBase(raw, path) {
+  if (!path || !raw || typeof raw !== "object") return null;
+  if (typeof raw.$ref === "string") {
+    if (!raw.$ref.startsWith("#/")) return null;
+    const target = resolveRef(raw.$ref);
+    if (!target || target["x-origin-external"]) return null;
+    return raw.$ref.slice(2).split("/").map(decodeSeg);
+  }
+  return raw["x-origin-external"] ? null : path;
+}
+
+function editAttrs(path, label) {
+  return path ? ` data-edit="${esc(JSON.stringify(path))}" data-edit-label="${esc(label)}"` : "";
+}
+
+// Текст, который можно поменять кликом; пустое значение в режиме правки превращается в кнопку «добавить».
+function editableMd(text, path, label, addLabel, fallback = "") {
+  if (!path) return text ? md(text) : fallback;
+  if (text) return `<div class="editable"${editAttrs(path, label)}>${md(text)}</div>`;
+  return (fallback ? `<span class="no-edit">${fallback}</span>` : "")
+    + `<button type="button" class="edit-add"${editAttrs(path, label)}>+ ${esc(addLabel || label)}</button>`;
+}
+
 /* allOf склеиваем в один объект для показа */
 function flatten(node, seen = new Set()) {
   const s = deref(node);
@@ -213,30 +238,36 @@ function consHtml(node) {
   return out.join("") || DASH;
 }
 
-function descHtml(node) {
+// editPath - путь узла в файле; если задан, описание можно поменять кликом
+function descHtml(node, editPath) {
   const s = flatten(node);
   if (s["x-unresolved-ref"]) {
     return `<span class="unresolved">Ссылка <code>${esc(s["x-unresolved-ref"])}</code> не подключена: ${esc(s["x-ref-error"] || "")}</span>`;
   }
-  const parts = [md(s.description)];
+  const extra = [];
   const it = s.items ? flatten(s.items) : null;
-  if (it && it.description && !schemaName(s.items)) parts.push(`<span class="ex">Элемент: ${esc(it.description)}</span>`);
+  if (it && it.description && !schemaName(s.items)) extra.push(`<span class="ex">Элемент: ${esc(it.description)}</span>`);
   const example = s.example !== undefined ? s.example : Array.isArray(s.examples) ? s.examples[0] : undefined;
   if (example !== undefined && (typeof example !== "object" || example === null)) {
-    parts.push(`<span class="ex">Пример: <code>${esc(JSON.stringify(example))}</code></span>`);
+    extra.push(`<span class="ex">Пример: <code>${esc(JSON.stringify(example))}</code></span>`);
   } else if (it && it.example !== undefined && typeof it.example !== "object") {
-    parts.push(`<span class="ex">Пример элемента: <code>${esc(JSON.stringify(it.example))}</code></span>`);
+    extra.push(`<span class="ex">Пример элемента: <code>${esc(JSON.stringify(it.example))}</code></span>`);
   }
-  return parts.join("") || DASH;
+  const path = editPath ? [...editPath, "description"] : null;
+  const desc = editableMd(s.description, path, "Описание", "описание", extra.length ? "" : DASH);
+  return desc + extra.join("") || DASH;
 }
 
-function fieldRow(label, prefix, node, flags, depth) {
+function fieldRow(label, prefix, node, flags, depth, editPath) {
   return `<tr><td class="f-name" style="padding-left:${12 + depth * 18}px">${prefix ? `<span class="pfx">${esc(prefix)}</span>` : ""}${esc(label)}${flags}</td>`
-    + `<td class="f-type">${typeHtml(node)}</td><td class="f-cons">${consHtml(node)}</td><td class="f-desc">${descHtml(node)}</td></tr>`;
+    + `<td class="f-type">${typeHtml(node)}</td><td class="f-cons">${consHtml(node)}</td><td class="f-desc">${descHtml(node, editPath)}</td></tr>`;
 }
 
-function fieldRows(node, expand, prefix, depth, seen) {
+// base - путь node в файле или null
+function fieldRows(node, expand, prefix, depth, seen, base) {
   const s = flatten(node);
+  // у allOf поля собраны из нескольких мест, путь неоднозначен - такие не правим
+  const own = base && !deref(node).allOf ? base : null;
   const req = new Set(s.required || []);
   let html = "";
   for (const [name, p] of Object.entries(s.properties || {})) {
@@ -246,51 +277,60 @@ function fieldRows(node, expand, prefix, depth, seen) {
     if (ps.readOnly) flags += '<span class="f-flag">только в ответе</span>';
     if (ps.writeOnly) flags += '<span class="f-flag">только в запросе</span>';
     if (ps.deprecated) flags += '<span class="f-flag">устарело</span>';
-    html += fieldRow(name, prefix, p, flags, depth);
-    html += childRows(p, expand, prefix + name, depth, seen);
+    const pBase = own ? editBase(p, [...own, "properties", name]) : null;
+    // у поля-ссылки описание берётся из модели: его правят в разделе моделей
+    html += fieldRow(name, prefix, p, flags, depth, pBase && !p.$ref ? pBase : null);
+    html += childRows(p, expand, prefix + name, depth, seen, pBase);
   }
-  if (s.additionalProperties && typeof s.additionalProperties === "object") {
-    html += fieldRow("{ключ}", prefix, s.additionalProperties, '<span class="f-flag">произвольные ключи</span>', depth);
-    html += childRows(s.additionalProperties, expand, prefix + "{ключ}", depth, seen);
+  const ap = s.additionalProperties;
+  if (ap && typeof ap === "object") {
+    const apBase = own ? editBase(ap, [...own, "additionalProperties"]) : null;
+    html += fieldRow("{ключ}", prefix, ap, '<span class="f-flag">произвольные ключи</span>', depth, apBase && !ap.$ref ? apBase : null);
+    html += childRows(ap, expand, prefix + "{ключ}", depth, seen, apBase);
   }
   return html;
 }
 
-function childRows(node, expand, path, depth, seen) {
+function childRows(node, expand, path, depth, seen, base) {
   if (depth >= 5) return "";
   // ссылки на модели раскрываем только в методах (expand), в разделе моделей даём ссылку
   if (node.$ref && (!expand || seen.has(node.$ref))) return "";
   const s = flatten(node);
   let target = node;
   let suffix = ".";
+  let targetBase = base;
   if (typeOf(s) === "array" && s.items) {
     target = s.items;
     suffix = "[].";
     if (target.$ref && (!expand || seen.has(target.$ref))) return "";
+    targetBase = base && !deref(node).allOf ? editBase(s.items, [...base, "items"]) : null;
   }
   const t = flatten(target);
   if (!t.properties && !(t.additionalProperties && typeof t.additionalProperties === "object")) return "";
   const next = new Set(seen);
   if (node.$ref) next.add(node.$ref);
   if (target.$ref) next.add(target.$ref);
-  return fieldRows(target, expand, path + suffix, depth + 1, next);
+  return fieldRows(target, expand, path + suffix, depth + 1, next, targetBase);
 }
 
-function schemaTable(node, expand) {
+// base - путь node в файле (без учёта $ref); null - правка недоступна
+function schemaTable(node, expand, base) {
   if (!node) return "";
   const s = flatten(node);
   if (s["x-unresolved-ref"]) {
     return `<p class="note">Схема по ссылке <code>${esc(s["x-unresolved-ref"])}</code> не подключена: ${esc(s["x-ref-error"] || "")}.</p>`;
   }
+  const b = base ? editBase(node, base) : null;
   const seen = new Set(node.$ref ? [node.$ref] : []);
   let body;
   if (s.properties || (s.additionalProperties && typeof s.additionalProperties === "object")) {
-    body = fieldRows(node, expand, "", 0, seen);
+    body = fieldRows(node, expand, "", 0, seen, b);
   } else {
-    body = fieldRow("(значение)", "", node, "", 0);
+    body = fieldRow("(значение)", "", node, "", 0, b && !node.$ref ? b : null);
     if (typeOf(s) === "array" && s.items && (expand || !s.items.$ref)) {
       const it = flatten(s.items);
-      if (it.properties) body += fieldRows(s.items, expand, "[].", 1, new Set([...seen, s.items.$ref].filter(Boolean)));
+      const itemsBase = b && !deref(node).allOf ? editBase(s.items, [...b, "items"]) : null;
+      if (it.properties) body += fieldRows(s.items, expand, "[].", 1, new Set([...seen, s.items.$ref].filter(Boolean)), itemsBase);
     }
   }
   return `<div class="tbl-wrap"><table><thead><tr><th>Поле</th><th>Тип</th><th>Значения и ограничения</th><th>Описание</th></tr></thead><tbody>${body}</tbody></table></div>`;

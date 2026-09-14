@@ -29,11 +29,14 @@ COMPONENT_RE = re.compile(
 )
 
 
-def load_file(path: Path):
-    text = path.read_text(encoding="utf-8-sig")
+def parse_text(text: str, path: Path):
     if path.suffix.lower() == ".json":
         return json.loads(text)
     return yaml.safe_load(text)
+
+
+def load_file(path: Path):
+    return parse_text(path.read_text(encoding="utf-8-sig"), path)
 
 
 def normalize(node):
@@ -61,12 +64,17 @@ def pointer_get(doc, pointer: str):
 
 
 class Resolver:
-    def __init__(self, main_path: Path):
+    """Разрешает $ref. Всё, что пришло не из основного файла, помечается x-origin-external:
+    такие места нельзя править из окна программы, их нет в редактируемом файле."""
+
+    def __init__(self, main_path: Path, text=None):
         self.main_path = main_path.resolve()
         self.docs = {}
         self.warnings = []
         self.hoisted = {}  # (file, pointer) -> (kind, name)
-        self.root = normalize(load_file(self.main_path))
+        self.extra = {}  # компоненты из внешних файлов: kind -> {name: value}
+        raw = load_file(self.main_path) if text is None else parse_text(text, self.main_path)
+        self.root = normalize(raw)
         self.docs[self.main_path] = self.root
 
     def doc(self, path: Path):
@@ -80,8 +88,12 @@ class Resolver:
         self.warnings.append({"ref": ref, "file": where, "message": message})
 
     def run(self):
-        self.root = self.walk(self.root, self.main_path, ())
-        return self.root
+        root = self.walk(self.root, self.main_path, ())
+        if isinstance(root, dict):
+            for kind, items in self.extra.items():
+                root.setdefault("components", {}).setdefault(kind, {}).update(items)
+        self.root = root
+        return root
 
     def walk(self, node, base: Path, stack):
         if isinstance(node, list):
@@ -125,13 +137,17 @@ class Resolver:
         if match:
             # компонент из внешнего файла переносим в components основного, чтобы сохранить имя
             kind, name = match.group(1), unquote(match.group(2))
-            section = self.root.setdefault("components", {}).setdefault(kind, {})
+            existing = (self.root.get("components") or {}).get(kind) or {}
+            extra = self.extra.setdefault(kind, {})
             unique, n = name, 2
-            while unique in section:
+            while unique in existing or unique in extra:
                 unique, n = f"{name}_{n}", n + 1
             self.hoisted[key] = (kind, unique)
-            section[unique] = {}
-            section[unique] = self.walk(value, target, stack + (key,))
+            extra[unique] = {}
+            hoisted = self.walk(value, target, stack + (key,))
+            if isinstance(hoisted, dict):
+                hoisted["x-origin-external"] = ref
+            extra[unique] = hoisted
             return {"$ref": f"#/components/{kind}/{unique}"}
 
         if key in stack:
@@ -143,13 +159,15 @@ class Resolver:
             # соседние ключи рядом с $ref (description и т.п.) имеют приоритет
             extra = {k: self.walk(v, base, stack) for k, v in node.items() if k != "$ref"}
             resolved = {**resolved, **extra}
+            resolved.setdefault("x-origin-external", ref)
         return resolved
 
 
-def build_html(src: Path):
-    """Собирает страницу в памяти. Возвращает (html, warnings, title)."""
+def build_html(src: Path, text=None):
+    """Собирает страницу в памяти. text - несохранённое содержимое файла из редактора.
+    Возвращает (html, warnings, title)."""
     src = Path(src).resolve()
-    resolver = Resolver(src)
+    resolver = Resolver(src, text)
     spec = resolver.run()
     if isinstance(spec, dict) and "swagger" in spec:
         raise ValueError("Swagger 2.0 не поддерживается, нужен OpenAPI 3.x (конвертер: https://converter.swagger.io)")
