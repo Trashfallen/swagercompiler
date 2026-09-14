@@ -146,7 +146,9 @@ class Resolver:
         return resolved
 
 
-def build(src: Path, out: Path):
+def build_html(src: Path):
+    """Собирает страницу в памяти. Возвращает (html, warnings, title)."""
+    src = Path(src).resolve()
     resolver = Resolver(src)
     spec = resolver.run()
     if isinstance(spec, dict) and "swagger" in spec:
@@ -174,8 +176,13 @@ def build(src: Path, out: Path):
         .replace("/*__RENDERER__*/", renderer)
         .replace("__SPEC_JSON__", data)
     )
+    return html, resolver.warnings, title
+
+
+def build(src: Path, out: Path):
+    html, warnings, _ = build_html(src)
     out.write_text(html, encoding="utf-8")
-    return resolver.warnings
+    return warnings
 
 
 def pause():

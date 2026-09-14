@@ -7,7 +7,7 @@ if "%~1"=="" (
 )
 where python >nul 2>nul
 if errorlevel 1 (
-  echo Python not found. Use bin\openapi2html.exe or install Python 3.8+ and run: pip install -r requirements.txt
+  echo Python not found. Use bin\SwaggerCompiler.exe or install Python 3.8+ and run: pip install -r requirements.txt
   pause
   exit /b 1
 )
