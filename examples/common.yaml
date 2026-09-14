@@ -1,0 +1,28 @@
+components:
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Машинный код ошибки
+        message:
+          type: string
+          description: Текст для человека
+  responses:
+    BadRequest:
+      description: Невалидный запрос
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: VALIDATION_ERROR
+            message: Поле title обязательно
+    Unauthorized:
+      description: Нет токена или он недействителен
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

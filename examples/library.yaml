@@ -1,0 +1,210 @@
+openapi: "3.0.3"
+info:
+  title: Библиотека - демо API
+  version: "1.2.0"
+  description: |-
+    Демонстрационная спецификация для проверки openapi2html.
+
+    Что здесь есть:
+    - параметры path/query/header
+    - `allOf`, `oneOf`, enum с расшифровкой
+    - внешний `$ref` на файл `common.yaml`
+    - пример, который **не** проходит проверку схемы
+  contact:
+    name: Команда каталога
+    email: catalog@example.com
+servers:
+  - url: https://api.example.com/v1
+    description: Прод
+  - url: /v1
+    description: Текущий сервер
+tags:
+  - name: Книги
+    description: Каталог книг
+  - name: Выдача
+    description: Выдача и возврат
+security:
+  - bearer: []
+paths:
+  /books:
+    get:
+      tags: [Книги]
+      summary: Список книг
+      operationId: listBooks
+      parameters:
+        - name: genre
+          in: query
+          description: Фильтр по жанру
+          schema:
+            $ref: "#/components/schemas/Genre"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Страница результатов
+          headers:
+            X-Total-Count:
+              description: Всего записей
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Book"
+                  next_cursor:
+                    type: string
+                    nullable: true
+              examples:
+                page:
+                  summary: Первая страница
+                  value:
+                    items:
+                      - id: 17
+                        title: Книга 1
+                        genre: novel
+                        available: true
+                        author: { name: Автор 1 }
+                      - id: 42
+                        title: Книга 2
+                        genre: scifi
+                        available: false
+                        author: { name: Автор 2 }
+                    next_cursor: null
+        "401":
+          $ref: "./common.yaml#/components/responses/Unauthorized"
+    post:
+      tags: [Книги]
+      summary: Добавить книгу
+      operationId: createBook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookInput"
+            examples:
+              ok:
+                summary: Корректная книга
+                value: { title: Книга 3, genre: scifi, author: { name: Автор 3 } }
+              broken:
+                summary: С ошибкой (жанр не из списка)
+                value: { title: Книга 3, genre: fantasy }
+      responses:
+        "201":
+          description: Книга создана
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Book"
+        "400":
+          $ref: "./common.yaml#/components/responses/BadRequest"
+  /books/{bookId}:
+    parameters:
+      - name: bookId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1, example: 17 }
+    delete:
+      tags: [Книги]
+      summary: Удалить книгу
+      deprecated: true
+      responses:
+        "204":
+          description: Удалено
+  /loans:
+    post:
+      tags: [Выдача]
+      summary: Выдать книгу читателю
+      security:
+        - apiKey: []
+      parameters:
+        - name: X-Request-Id
+          in: header
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [book_id, reader]
+              properties:
+                book_id: { type: integer }
+                reader:
+                  oneOf:
+                    - $ref: "#/components/schemas/ReaderCard"
+                    - $ref: "#/components/schemas/ReaderPassport"
+                due_date: { type: string, format: date }
+                meta:
+                  type: object
+                  additionalProperties: { type: string }
+      responses:
+        "200":
+          description: Выдача оформлена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  loan_id: { type: string, format: uuid, readOnly: true }
+                  status: { $ref: "#/components/schemas/LoanStatus" }
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+      description: Ключ терминала выдачи
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+  schemas:
+    Genre:
+      type: string
+      enum: [novel, scifi, poetry]
+      x-enum-descriptions: [Роман, Фантастика, Поэзия]
+    Author:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, maxLength: 200 }
+        born: { type: string, format: date }
+    BookInput:
+      type: object
+      required: [title, genre]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 300 }
+        genre: { $ref: "#/components/schemas/Genre" }
+        author: { $ref: "#/components/schemas/Author" }
+    Book:
+      allOf:
+        - $ref: "#/components/schemas/BookInput"
+        - type: object
+          required: [id]
+          properties:
+            id: { type: integer, readOnly: true }
+            available: { type: boolean, description: Есть ли экземпляр на полке }
+    ReaderCard:
+      type: object
+      required: [card]
+      properties:
+        card: { type: string, pattern: "^[0-9]{8}$", example: "00012345" }
+    ReaderPassport:
+      type: object
+      required: [passport]
+      properties:
+        passport: { type: string, example: "4510 123456" }
+    LoanStatus:
+      type: string
+      enum: [issued, overdue, returned]
