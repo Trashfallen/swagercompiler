@@ -61,6 +61,8 @@ The **Сохранить** (Save) button saves the HTML page. The arrow next to 
 | Скопировать код для блока HTML (Copy code for the HTML block) | Yandex Wiki HTML block code in the clipboard |
 | Сохранить код для Вики в файл (Save Wiki code to file) | Yandex Wiki HTML block code in a `.wiki.html` file |
 
+![Save menu](docs/screen-save-menu.png)
+
 ### Publishing to Yandex Wiki
 
 1. Open the specification.
