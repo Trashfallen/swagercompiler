@@ -57,6 +57,21 @@ button{font-family:inherit}
 .btn .key{font:11px var(--font-mono);opacity:.6}
 .sep-v{width:1px;height:22px;background:var(--line);margin:0 2px;align-self:center}
 
+/* меню сохранения */
+.split{position:relative;display:inline-flex}
+.split-main{border-top-right-radius:0;border-bottom-right-radius:0}
+.split-arrow{border-top-left-radius:0;border-bottom-left-radius:0;padding:0 8px;margin-left:-1px}
+.split-arrow.primary{border-left-color:color-mix(in srgb,var(--on-accent) 35%,var(--accent))}
+.menu{position:absolute;right:0;top:calc(100% + 6px);z-index:50;width:340px;display:grid;gap:1px;padding:6px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 14px 36px rgba(0,0,0,.2)}
+.menu-label{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:6px 10px 4px}
+.menu-sep{height:1px;background:var(--line);margin:6px 4px}
+.menu button{display:flex;align-items:flex-start;gap:10px;width:100%;text-align:left;border:0;background:none;color:var(--ink);font:500 13.5px/1.35 var(--font-sans);padding:8px 10px;border-radius:6px;cursor:pointer}
+.menu button:hover,.menu button:focus-visible{background:var(--accent-soft);color:var(--ink);outline:none}
+.menu button svg{width:16px;height:16px;flex:none;margin-top:1px;color:var(--accent)}
+.menu button span{display:grid;gap:1px;min-width:0}
+.menu small{font:400 12px/1.35 var(--font-sans);color:var(--muted)}
+.menu .key{margin-left:auto;font:11px var(--font-mono);color:var(--faint);white-space:nowrap;padding-top:2px}
+
 /* notice */
 .notice{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:8px 14px;background:var(--warn-soft);color:var(--warn);border-bottom:1px solid var(--line);font-size:13px}
 .notice .btn{height:28px}
@@ -177,9 +192,35 @@ iframe{border:0;width:100%;height:100%;display:block;background:var(--bg)}
     <button type="button" class="btn icon" id="btn-browser" title="Открыть в браузере" disabled>
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5h4.5V7M13.5 2.5 7.5 8.5M11.5 9.5v4h-9v-9h4"/></svg><span class="lbl">В браузере</span>
     </button>
-    <button type="button" class="btn primary" id="btn-save" title="Сохранить страницу в HTML (Ctrl+S)" disabled>
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 13.5h11"/></svg><span class="lbl">Сохранить HTML</span><span class="key" id="save-html-key">Ctrl+S</span>
-    </button>
+    <div class="split" id="save-group">
+      <button type="button" class="btn primary split-main" id="btn-save" title="Сохранить страницу в HTML (Ctrl+S)" disabled>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 13.5h11"/></svg><span class="lbl">Сохранить</span><span class="key" id="save-html-key">Ctrl+S</span>
+      </button>
+      <button type="button" class="btn primary split-arrow" id="btn-save-menu" title="Варианты сохранения" aria-haspopup="menu" aria-expanded="false" disabled>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>
+      </button>
+      <div class="menu" id="save-menu" role="menu" hidden>
+        <div class="menu-label">Страница</div>
+        <button type="button" role="menuitem" data-action="save-html">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 13.5h11"/></svg>
+          <span>Сохранить HTML на компьютер<small>Полная страница с поиском и примерами</small></span><span class="key" id="menu-save-key">Ctrl+S</span>
+        </button>
+        <button type="button" role="menuitem" data-action="copy-html">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 3V2.5h-8v8H3"/></svg>
+          <span>Скопировать HTML страницы<small>Со скриптами, для файла или браузера</small></span>
+        </button>
+        <div class="menu-sep"></div>
+        <div class="menu-label">Yandex Wiki</div>
+        <button type="button" role="menuitem" data-action="copy-wiki">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 3V2.5h-8v8H3"/></svg>
+          <span>Скопировать код для блока HTML<small>Без скриптов, вставляется в блок HTML на странице Вики</small></span>
+        </button>
+        <button type="button" role="menuitem" data-action="save-wiki">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 13.5h11"/></svg>
+          <span>Сохранить код для Вики в файл<small>Тот же код, файл .wiki.html</small></span>
+        </button>
+      </div>
+    </div>
     <button type="button" class="btn primary" id="btn-save-file" title="Сохранить изменения в файл (Ctrl+S)" hidden disabled>
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2.5 2.5h9l2 2v9h-11z"/><path d="M5 2.5v3.5h5V2.5M5 13.5V9.5h6v4"/></svg><span class="lbl">Сохранить файл</span><span class="key">Ctrl+S</span>
     </button>
@@ -313,10 +354,13 @@ function updateToolbar() {
   $("btn-edit").setAttribute("aria-pressed", String(state.editing));
   $("btn-save").disabled = !state.lastOk;
   $("btn-browser").disabled = !state.lastOk;
+  $("btn-save-menu").disabled = !state.lastOk;
   $("btn-save-file").hidden = !state.editing;
   $("btn-save-file").disabled = !state.dirty;
   $("btn-save").classList.toggle("primary", !state.editing);
+  $("btn-save-menu").classList.toggle("primary", !state.editing);
   $("save-html-key").textContent = state.editing ? "Ctrl+Shift+S" : "Ctrl+S";
+  $("menu-save-key").textContent = $("save-html-key").textContent;
   $("dirty").hidden = !state.dirty;
 }
 
@@ -775,6 +819,72 @@ function initSplitter() {
     try { localStorage.setItem("editorWidth", stage.style.getPropertyValue("--ed-w")); } catch (e) { /* пусто */ }
   });
 }
+
+/* ---------- меню сохранения: HTML страницы и код для Yandex Wiki ---------- */
+function toggleSaveMenu(open) {
+  const menu = $("save-menu");
+  const show = open === undefined ? menu.hidden : open;
+  if (show && $("btn-save-menu").disabled) return;
+  menu.hidden = !show;
+  $("btn-save-menu").setAttribute("aria-expanded", String(show));
+  if (show) menu.querySelector("button").focus();
+}
+
+// Вики не выполняет скрипты, поэтому код для неё собирает сама страница: всё уже нарисовано, стили только разрешённые
+function wikiHtml() {
+  try {
+    return viewer.contentWindow.openapiWikiHtml();
+  } catch (e) {
+    toast("Не удалось собрать код для Вики: " + e.message, null, null, "bad");
+    return null;
+  }
+}
+
+async function saveWikiHtml(html) {
+  const r = await api.save_wiki_dialog(html);
+  if (r && r.ok) toast("Сохранено: " + r.path, "Показать в папке", () => api.show_in_folder(r.path));
+  else if (r) toast("Не удалось сохранить: " + r.error, null, null, "bad");
+}
+
+async function copyHtml() {
+  if (!state.lastOk) return;
+  if (await api.copy_html()) toast("HTML страницы скопирован в буфер обмена");
+  else toast("Не удалось скопировать в буфер обмена", null, null, "bad");
+}
+
+async function copyWiki() {
+  if (!state.lastOk) return;
+  const html = wikiHtml();
+  if (!html) return;
+  const kb = Math.round(html.length / 1024);
+  if (await api.copy_text(html)) toast(`Код для Вики скопирован (${kb} КБ). Вставьте его в блок HTML на странице.`, "Сохранить в файл", () => saveWikiHtml(html));
+  else toast("Не удалось скопировать в буфер обмена.", "Сохранить в файл", () => saveWikiHtml(html), "bad");
+}
+
+async function saveWiki() {
+  if (!state.lastOk) return;
+  const html = wikiHtml();
+  if (html) saveWikiHtml(html);
+}
+
+const SAVE_ACTIONS = { "save-html": saveHtml, "copy-html": copyHtml, "copy-wiki": copyWiki, "save-wiki": saveWiki };
+$("btn-save-menu").addEventListener("click", () => toggleSaveMenu());
+$("save-menu").addEventListener("click", e => {
+  const item = e.target.closest("[data-action]");
+  if (!item) return;
+  toggleSaveMenu(false);
+  SAVE_ACTIONS[item.dataset.action]();
+});
+$("save-menu").addEventListener("keydown", e => {
+  const items = [...$("save-menu").querySelectorAll("button")];
+  const i = items.indexOf(document.activeElement);
+  if (e.key === "ArrowDown") { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+});
+document.addEventListener("click", e => { if (!e.target.closest("#save-group")) toggleSaveMenu(false); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("save-menu").hidden) { toggleSaveMenu(false); $("btn-save-menu").focus(); } });
+// щелчок внутри страницы не доходит до окна, но уводит фокус
+window.addEventListener("blur", () => toggleSaveMenu(false));
 
 window.app = {
   openPath: p => openPath(p),

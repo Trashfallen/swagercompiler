@@ -449,6 +449,25 @@ function validate(value, node, mode, path = "", errors = [], depth = 0) {
   return errors;
 }
 
+// Поля примера, которых нет в схеме. Если additionalProperties не задан, лишние поля допустимы,
+// но в документации это почти всегда опечатка или забытое описание.
+function undocumentedFields(value, node, path = "", out = [], depth = 0) {
+  if (!node || value === null || typeof value !== "object" || depth > 30 || out.length >= 20) return out;
+  const s = flatten(node);
+  if (s["x-unresolved-ref"] || s.oneOf || s.anyOf) return out;
+  if (Array.isArray(value)) {
+    if (s.items) value.forEach((v, i) => undocumentedFields(v, s.items, `${path}[${i}]`, out, depth + 1));
+    return out;
+  }
+  const props = s.properties;
+  for (const [k, v] of Object.entries(value)) {
+    if (props && props[k]) undocumentedFields(v, props[k], joinPath(path, k), out, depth + 1);
+    else if (props && s.additionalProperties === undefined) out.push(joinPath(path, k));
+    else if (s.additionalProperties && typeof s.additionalProperties === "object") undocumentedFields(v, s.additionalProperties, joinPath(path, k), out, depth + 1);
+  }
+  return out;
+}
+
 /* ---------- примеры ---------- */
 function mediaExamples(mt, mode) {
   const out = [];
@@ -462,10 +481,16 @@ function mediaExamples(mt, mode) {
   } else if (mt.example !== undefined) {
     out.push({ key: "example", summary: "Пример", value: mt.example });
   }
-  if (!out.length && mt.schema) {
+  if (mt.schema) {
     const s = flatten(mt.schema);
-    if (s.example !== undefined) out.push({ key: "schema", summary: "Пример из схемы", value: s.example });
-    else if (!s["x-unresolved-ref"]) out.push({ key: "generated", summary: "Сгенерирован по схеме", value: sample(mt.schema, mode), generated: true });
+    const name = schemaName(mt.schema);
+    // пример из самой схемы - отдельная копия данных; показываем его рядом, иначе правка в нём не видна в методе
+    const same = out.some(e => JSON.stringify(e.value) === JSON.stringify(s.example));
+    if (s.example !== undefined && !same) {
+      out.push({ key: "schema", summary: name ? `Пример из схемы ${name}` : "Пример из схемы", value: s.example, fromSchema: true });
+    } else if (!out.length && !s["x-unresolved-ref"]) {
+      out.push({ key: "generated", summary: "Сгенерирован по схеме", value: sample(mt.schema, mode), generated: true });
+    }
   }
   return out;
 }

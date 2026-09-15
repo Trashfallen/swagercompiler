@@ -13,7 +13,7 @@ if errorlevel 1 goto fail
 ".venv\Scripts\python.exe" tools\make_icon.py
 if errorlevel 1 goto fail
 
-".venv\Scripts\python.exe" -m PyInstaller --noconfirm --clean --onefile --windowed --name SwaggerCompiler --icon assets\app.ico --add-data "template.html;." --add-data "renderer-core.js;." --add-data "renderer-page.js;." --add-data "app_ui.html;." app.py
+".venv\Scripts\python.exe" -m PyInstaller --noconfirm --clean --onefile --windowed --name SwaggerCompiler --icon assets\app.ico --add-data "template.html;." --add-data "renderer-core.js;." --add-data "renderer-page.js;." --add-data "app_ui.html;." --add-data "wiki.css;." app.py
 if errorlevel 1 goto fail
 
 if not exist bin mkdir bin

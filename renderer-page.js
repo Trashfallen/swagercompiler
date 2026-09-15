@@ -386,12 +386,9 @@ ops.forEach(o => {
   const check = (type, mt, mode, where) => {
     if (!mt || !mt.schema || !(/json/i.test(type) || type === "*/*")) return;
     mediaExamples(mt, mode).forEach(ex => {
-      if (ex.generated || ex.unresolved || ex.value === undefined) return;
-      const errs = validate(ex.value, mt.schema, mode);
-      if (errs.length) {
-        issues.push({ where: `${label} · ${where} · пример «${ex.summary}»`, href: "#" + o.id,
-          text: "пример не соответствует схеме: " + errs.slice(0, 3).join("; ") + (errs.length > 3 ? `; и ещё ${errs.length - 3}` : "") });
-      }
+      // пример из схемы проверяется один раз, в разделе моделей
+      if (ex.generated || ex.unresolved || ex.fromSchema || ex.value === undefined) return;
+      checkExample(`${label} · ${where} · пример «${ex.summary}»`, "#" + o.id, ex.value, mt.schema, mode);
     });
   };
   const rb = o.op.requestBody ? deref(o.op.requestBody) : null;
@@ -401,6 +398,24 @@ ops.forEach(o => {
   Object.entries(responses).forEach(([code, raw]) => {
     Object.entries(deref(raw).content || {}).forEach(([t, mt]) => check(t, mt, "response", `ответ ${code}`));
   });
+});
+
+function checkExample(where, href, value, schema, mode) {
+  const errs = validate(value, schema, mode);
+  if (errs.length) {
+    issues.push({ where, href, text: "пример не соответствует схеме: " + errs.slice(0, 3).join("; ") + (errs.length > 3 ? `; и ещё ${errs.length - 3}` : "") });
+  }
+  const extra = undocumentedFields(value, schema);
+  if (extra.length) {
+    issues.push({ where, href, text: "в примере есть поля, которых нет в схеме: " + extra.slice(0, 5).join(", ") + (extra.length > 5 ? ` и ещё ${extra.length - 5}` : "") });
+  }
+}
+
+// примеры внутри моделей (components/schemas/*/example) - отдельная копия данных, проверяем её тоже
+Object.entries(SCHEMAS).forEach(([name, raw]) => {
+  const s = flatten(raw);
+  if (s.example === undefined || s["x-unresolved-ref"]) return;
+  checkExample(`Модель ${name} · пример`, "#" + modelId(name), s.example, raw);
 });
 
 /* ---------- навигация ---------- */
@@ -603,3 +618,68 @@ document.addEventListener("click", e => {
 }, true);
 
 window.openapiEditMode = on => document.documentElement.classList.toggle("edit-mode", !!on);
+
+/* ---------- экспорт для HTML-блока Yandex Wiki ---------- */
+// Вики не выполняет скрипты и пропускает только часть CSS, поэтому отдаём уже нарисованную страницу:
+// все блоки отрисованы, все примеры выложены подряд, кнопки, поля ввода и отметки правки убраны.
+function wikiRenderAll() {
+  const opened = [];
+  for (let pass = 0; pass < 6; pass++) {
+    const closed = [...document.querySelectorAll("#main details:not([open])")];
+    if (!closed.length) break;
+    closed.forEach(d => {
+      d.open = true;
+      d.dispatchEvent(new Event("toggle"));
+      opened.push(d);
+    });
+  }
+  return opened;
+}
+
+function wikiToc() {
+  // тег и его методы одним блоком, чтобы колонки не разрывали группу
+  const html = navGroups.map(({ label, items }) =>
+    `<li><div class="toc-tag">${esc(label.textContent)}</div><ul>${items.map(({ li }) => `<li>${li.querySelector("a").outerHTML}</li>`).join("")}</ul></li>`).join("");
+  return html ? `<ul class="toc">${html}</ul>` : "";
+}
+
+window.openapiWikiHtml = function () {
+  const opened = wikiRenderAll();
+
+  // все варианты примеров: переключаем вкладки и забираем содержимое каждой
+  const examples = [];
+  document.querySelectorAll("#main .ex-bar").forEach(bar => {
+    const mount = bar.parentElement;
+    const view = mount.querySelector(".seg-view");
+    const buttons = [...bar.querySelector(".seg").querySelectorAll("button")];
+    const current = buttons.findIndex(b => b.getAttribute("aria-selected") === "true");
+    mount.dataset.wikiEx = String(examples.length);
+    examples.push(buttons.map(b => {
+      b.click();
+      return `<div class="ex-title">${esc(b.textContent)}</div>${view.innerHTML}`;
+    }).join(""));
+    if (buttons[current]) buttons[current].click();
+  });
+
+  const root = document.getElementById("main").cloneNode(true);
+  document.querySelectorAll("[data-wiki-ex]").forEach(m => m.removeAttribute("data-wiki-ex"));
+  opened.forEach(d => { d.open = false; });
+
+  root.querySelectorAll("[data-wiki-ex]").forEach(m => {
+    m.innerHTML = examples[Number(m.dataset.wikiEx)];
+    m.removeAttribute("data-wiki-ex");
+  });
+  root.querySelectorAll(".builder").forEach(b => b.replaceWith(...b.querySelectorAll(".bld-out pre.code, .bld-out .bld-note")));
+  root.querySelectorAll(".edit-add, svg.chev, .seg, button, textarea, input").forEach(n => n.remove());
+  root.querySelectorAll(".no-edit").forEach(n => n.replaceWith(...n.childNodes));
+  root.querySelectorAll("[data-edit], [role], [aria-selected], th[style]").forEach(n => {
+    ["data-edit", "data-edit-label", "role", "aria-selected"].forEach(a => n.removeAttribute(a));
+    if (n.tagName === "TH") n.removeAttribute("style");
+  });
+  root.querySelectorAll("details").forEach(d => d.removeAttribute("open"));
+  root.querySelectorAll("details.resp").forEach(d => { if (!d.previousElementSibling) d.setAttribute("open", ""); });
+  const intro = root.querySelector("#overview");
+  if (intro) intro.insertAdjacentHTML("beforeend", wikiToc());
+
+  return `<style>\n${META.wikiCss || ""}\n</style>\n<div class="oa">\n${root.innerHTML}\n</div>\n`;
+};

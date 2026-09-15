@@ -247,6 +247,64 @@ class Api:
     def show_in_folder(self, path):
         subprocess.Popen(f'explorer /select,"{Path(path)}"')
 
+    def copy_text(self, text):
+        """Копирует текст в буфер обмена Windows. Буфер браузера во встроенном окне доступен не всегда."""
+        import ctypes
+        import time
+        from ctypes import wintypes
+
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.GlobalAlloc.restype = wintypes.HGLOBAL
+        kernel32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
+        kernel32.GlobalLock.restype = wintypes.LPVOID
+        kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
+        kernel32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
+        user32.OpenClipboard.argtypes = [wintypes.HWND]
+        user32.SetClipboardData.restype = wintypes.HANDLE
+        user32.SetClipboardData.argtypes = [wintypes.UINT, wintypes.HANDLE]
+
+        data = text.encode("utf-16-le") + b"\x00\x00"
+        for _ in range(20):
+            if user32.OpenClipboard(None):
+                break
+            time.sleep(0.05)
+        else:
+            return False
+        try:
+            user32.EmptyClipboard()
+            handle = kernel32.GlobalAlloc(0x0002, len(data))  # GMEM_MOVEABLE
+            if not handle:
+                return False
+            ptr = kernel32.GlobalLock(handle)
+            ctypes.memmove(ptr, data, len(data))
+            kernel32.GlobalUnlock(handle)
+            return bool(user32.SetClipboardData(13, handle))  # CF_UNICODETEXT
+        finally:
+            user32.CloseClipboard()
+
+    def copy_html(self):
+        """Полный HTML страницы (со скриптами) в буфер обмена."""
+        return bool(self._html) and self.copy_text(self._html)
+
+    def save_wiki_dialog(self, html):
+        if not self._path:
+            return None
+        src = Path(self._path)
+        result = self._window.create_file_dialog(
+            webview.FileDialog.SAVE, directory=str(src.parent), save_filename=src.stem + ".wiki.html", file_types=("HTML (*.html)",)
+        )
+        target = first_path(result)
+        if not target:
+            return None
+        if not target.lower().endswith((".html", ".htm")):
+            target += ".html"
+        try:
+            Path(target).write_text(html, encoding="utf-8")
+        except OSError as exc:
+            return {"ok": False, "error": str(exc)}
+        return {"ok": True, "path": target}
+
     def recent(self):
         return [
             {"path": i["path"], "name": Path(i["path"]).name, "opened": human_time(i.get("opened")), "exists": Path(i["path"]).is_file()}

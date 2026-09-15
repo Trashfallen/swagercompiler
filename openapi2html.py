@@ -180,6 +180,8 @@ def build_html(src: Path, text=None):
             "source": src.name,
             "generated": datetime.datetime.now().strftime("%d.%m.%Y %H:%M"),
             "refWarnings": resolver.warnings,
+            # стили для экспорта в HTML-блок Yandex Wiki (кнопка «Для Вики» в окне программы)
+            "wikiCss": (HERE / "wiki.css").read_text(encoding="utf-8"),
         },
     }
     data = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")

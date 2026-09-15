@@ -1,0 +1,119 @@
+/* Стили для HTML-блока Yandex Wiki.
+   Только свойства из белого списка Вики (проверка: python tools/check_wiki_css.py).
+   line-height в списке нет - межстрочный интервал задаётся через сокращённое свойство font.
+   Своих CSS-переменных нет: очистка может выбросить их объявления. Используются только переменные темы Вики
+   с запасным значением, поэтому блок подстраивается под светлую и тёмную тему. */
+.oa{font:15px/1.55 var(--yfm-html-font-family, "YS Text", "Segoe UI", system-ui, sans-serif);color:var(--yfm-html-color-text-primary, #1f2328)}
+.oa *{box-sizing:border-box}
+.oa h1{font:600 28px/1.2 var(--yfm-html-font-family, "YS Text", "Segoe UI", system-ui, sans-serif);margin:0 0 10px}
+.oa h2{font:600 21px/1.3 var(--yfm-html-font-family, "YS Text", "Segoe UI", system-ui, sans-serif);margin:40px 0 10px}
+.oa h3{font:600 16px/1.35 var(--yfm-html-font-family, "YS Text", "Segoe UI", system-ui, sans-serif);margin:26px 0 8px}
+.oa p{margin:0 0 8px}
+.oa a{color:var(--yfm-html-color-link, #2a62c9)}
+.oa ul,.oa ol{margin:0 0 8px;padding-left:22px}
+.oa code{font-family:Consolas,"Cascadia Mono",monospace;font-size:13px;background-color:var(--yfm-html-color-background-secondary, rgba(127,127,127,.12));border-radius:4px;padding:1px 5px;word-break:break-word}
+.oa .muted,.oa .dash,.oa .sep,.oa .f-type,.oa .tag,.oa .resp-ct,.oa .m-type,.oa .m-desc,.oa .ex,.oa .ex-desc,.oa .op-summary,.oa .cons{color:var(--yfm-html-color-text-secondary, #6b7580)}
+.oa .eyebrow{font-family:Consolas,"Cascadia Mono",monospace;font-size:12px;color:var(--yfm-html-color-text-secondary, #6b7580);margin:0 0 6px}
+.oa .lede{font-size:16px;margin:0 0 12px}
+.oa .sec-head p{color:var(--yfm-html-color-text-secondary, #6b7580)}
+
+/* обзор */
+.oa .facts{display:flex;flex-wrap:wrap;margin:14px 0 0;border:1px solid rgba(127,127,127,.3);border-radius:8px}
+.oa .facts>div{flex:1 1 180px;padding:10px 14px;border-right:1px solid rgba(127,127,127,.2)}
+.oa .facts dt{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--yfm-html-color-text-secondary, #6b7580)}
+.oa .facts dd{margin:2px 0 0;font-size:14px;word-break:break-word}
+.oa .toc{list-style:none;padding:0;margin:18px 0 0;columns:2 300px;column-gap:24px}
+.oa .toc>li{margin:0 0 12px;break-inside:avoid}
+.oa .toc ul{list-style:none;padding:0;margin:0}
+.oa .toc ul li{margin:0 0 5px}
+.oa .toc .toc-tag{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--yfm-html-color-text-secondary, #6b7580);margin:0 0 6px}
+.oa .toc a{text-decoration:none;font-family:Consolas,"Cascadia Mono",monospace;font-size:13px}
+.oa .lock svg{margin:0 4px 0 0}
+.oa .mini{display:inline-block;width:54px;text-align:center;font-family:Consolas,"Cascadia Mono",monospace;font-size:10px;font-weight:600;color:#FFFFFF;border-radius:3px;padding:2px 0;margin:0 8px 0 0}
+
+/* цвета методов одинаковые для обеих тем: белый текст на насыщенном фоне */
+.oa .m-get .method,.oa .mini.m-get{background-color:#2A62C9}
+.oa .m-post .method,.oa .mini.m-post{background-color:#137A52}
+.oa .m-put .method,.oa .mini.m-put{background-color:#9A5A07}
+.oa .m-patch .method,.oa .mini.m-patch{background-color:#0F7C86}
+.oa .m-delete .method,.oa .mini.m-delete{background-color:#B2352C}
+.oa .m-head .method,.oa .m-options .method,.oa .m-trace .method,.oa .mini.m-head{background-color:#5B6775}
+.oa details.m-get{border-left:4px solid #2A62C9}
+.oa details.m-post{border-left:4px solid #137A52}
+.oa details.m-put{border-left:4px solid #9A5A07}
+.oa details.m-patch{border-left:4px solid #0F7C86}
+.oa details.m-delete{border-left:4px solid #B2352C}
+
+/* метод */
+.oa details.op{border:1px solid rgba(127,127,127,.35);border-radius:8px;margin:0 0 10px}
+.oa details.op>summary{padding:10px 14px;background-color:var(--yfm-html-color-background-secondary, rgba(127,127,127,.08));border-radius:7px}
+.oa details.op[open]>summary{border-bottom:1px solid rgba(127,127,127,.3);border-bottom-left-radius:0;border-bottom-right-radius:0}
+.oa .method{display:inline-block;min-width:64px;text-align:center;font-family:Consolas,"Cascadia Mono",monospace;font-size:12px;font-weight:600;color:#FFFFFF;border-radius:4px;padding:4px 8px;margin:0 10px 0 4px}
+.oa .op-path{font-family:Consolas,"Cascadia Mono",monospace;font-size:15px;font-weight:600;margin:0 10px 0 0;word-break:break-word}
+.oa .deprecated .op-path{text-decoration:line-through}
+.oa .lock{display:inline-block;font-family:Consolas,"Cascadia Mono",monospace;font-size:12px;border:1px solid rgba(127,127,127,.45);border-radius:4px;padding:1px 6px;margin:0 0 0 10px;color:var(--yfm-html-color-text-secondary, #6b7580)}
+.oa .badge{display:inline-block;font-size:11px;font-weight:600;border-radius:4px;padding:2px 6px;margin:0 0 0 8px;background-color:rgba(214,138,30,.18);color:#C27A12}
+.oa .op-body{padding:14px 16px 4px}
+.oa .op-meta{font-size:13px;color:var(--yfm-html-color-text-secondary, #6b7580);margin:6px 0 0}
+.oa .op-meta span{margin:0 16px 0 0}
+.oa .block{margin:0 0 22px}
+.oa .block-head{border-bottom:1px solid rgba(127,127,127,.25);padding:0 0 6px;margin:0 0 10px}
+.oa .block-head h3{display:inline;font-size:15px;margin:0 10px 0 0}
+.oa .tag{font-family:Consolas,"Cascadia Mono",monospace;font-size:12px;margin:0 10px 0 0}
+.oa .tag.req{color:#D9534F}
+.oa .sub{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--yfm-html-color-text-secondary, #6b7580);margin:14px 0 6px}
+.oa .note{background-color:var(--yfm-html-color-background-secondary, rgba(127,127,127,.08));color:var(--yfm-html-color-text-secondary, #6b7580);border-radius:6px;padding:10px 12px;margin:0 0 10px;font-size:14px}
+.oa .unresolved{color:#C27A12}
+
+/* таблицы */
+.oa .tbl-wrap{border:1px solid rgba(127,127,127,.3);border-radius:6px;margin:0 0 12px}
+.oa table{width:100%;border-collapse:collapse;font-size:14px;margin:0}
+.oa th{text-align:left;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--yfm-html-color-text-secondary, #6b7580);background-color:var(--yfm-html-color-background-secondary, rgba(127,127,127,.08));padding:8px 10px;border-bottom:1px solid rgba(127,127,127,.3)}
+.oa td{padding:8px 10px;border-bottom:1px solid rgba(127,127,127,.18);word-break:normal}
+.oa td.f-desc{word-break:break-word}
+.oa tbody tr:last-child td{border-bottom:0}
+.oa .f-name{font-family:Consolas,"Cascadia Mono",monospace;font-size:13px;font-weight:500}
+.oa .f-name .pfx{color:var(--yfm-html-color-text-secondary, #6b7580);font-weight:400}
+.oa .f-flag{display:block;font-size:11px;font-weight:400;color:var(--yfm-html-color-text-secondary, #6b7580)}
+.oa .f-flag.req{color:#D9534F}
+.oa .f-type{font-family:Consolas,"Cascadia Mono",monospace;font-size:13px}
+.oa .enum{display:block;font-size:13px;margin:0 0 3px}
+.oa .enum span{color:var(--yfm-html-color-text-secondary, #6b7580);margin:0 0 0 6px}
+.oa .cons{display:block;font-size:13px}
+.oa .cons b{font-family:Consolas,"Cascadia Mono",monospace;font-weight:500;color:var(--yfm-html-color-text-primary, #1f2328)}
+.oa .ex{display:block;font-size:13px;margin:4px 0 0}
+.oa .chip{display:inline-block;font-size:12px;font-weight:500;border-radius:4px;padding:1px 7px}
+.oa .chip.yes{background-color:rgba(31,157,99,.16);color:#1F9D63}
+.oa .chip.no{background-color:rgba(127,127,127,.16);color:var(--yfm-html-color-text-secondary, #6b7580)}
+.oa .cell-json{font-family:Consolas,"Cascadia Mono",monospace;font-size:12px;color:var(--yfm-html-color-text-secondary, #6b7580);word-break:break-all}
+
+/* ответы */
+.oa details.resp{border:1px solid rgba(127,127,127,.28);border-radius:6px;margin:0 0 8px}
+.oa details.resp>summary{padding:8px 12px}
+.oa .resp-body{padding:4px 12px 10px}
+.oa .resp-desc{font-weight:500;margin:0 10px 0 8px}
+.oa .code-pill{display:inline-block;font-family:Consolas,"Cascadia Mono",monospace;font-size:13px;font-weight:600;border-radius:4px;padding:2px 7px;background-color:rgba(127,127,127,.16)}
+.oa .c2{background-color:rgba(31,157,99,.16);color:#1F9D63}
+.oa .c3{background-color:rgba(42,98,201,.16);color:#3C78D8}
+.oa .c4{background-color:rgba(214,138,30,.18);color:#C27A12}
+.oa .c5{background-color:rgba(217,83,79,.16);color:#D9534F}
+
+/* примеры и код: тёмный блок в обеих темах */
+.oa .ex-title{font-size:13px;font-weight:600;margin:10px 0 4px}
+.oa pre.code{background-color:#131B23;color:#D5DDE5;font:13px/1.6 Consolas,"Cascadia Mono",monospace;border-radius:6px;padding:12px 14px;margin:0 0 10px;word-wrap:normal}
+.oa .j-k{color:#94BEF7}
+.oa .j-s{color:#A8D8A3}
+.oa .j-l{color:#F0B67D}
+.oa .j-p{color:#76838F}
+.oa .bld-note{font-size:12px;color:var(--yfm-html-color-text-secondary, #6b7580);margin:0 0 6px}
+
+/* модели и замечания */
+.oa details.model{border:1px solid rgba(127,127,127,.28);border-radius:6px;margin:0 0 8px}
+.oa details.model>summary{padding:8px 12px}
+.oa .model-body{padding:4px 12px 10px}
+.oa .m-name{font-family:Consolas,"Cascadia Mono",monospace;font-weight:600;margin:0 10px 0 0}
+.oa .m-type{font-family:Consolas,"Cascadia Mono",monospace;font-size:12px;margin:0 10px 0 0}
+.oa .issues{list-style:none;padding:0;margin:0}
+.oa .issues li{border:1px solid rgba(127,127,127,.28);border-radius:6px;padding:8px 12px;margin:0 0 6px;font-size:14px}
+.oa .issues .where{display:block;font-family:Consolas,"Cascadia Mono",monospace;font-size:12px;color:#C27A12}
+.oa footer{font-size:12px;color:var(--yfm-html-color-text-secondary, #6b7580);border-top:1px solid rgba(127,127,127,.25);padding:10px 0 0;margin:28px 0 0}
