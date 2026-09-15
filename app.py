@@ -131,6 +131,15 @@ class Api:
         self._window.title = f"{title} - {APP_NAME}"
         return {"ok": True, "path": self._path, "name": name, "title": title, "warnings": warnings, "html": html}
 
+    def close_file(self):
+        """Возврат на главный экран: файл закрыт и больше не отслеживается."""
+        self._path = None
+        self._html = None
+        self._mtime = None
+        self._window.title = APP_NAME
+        self._window.confirm_close = False
+        return True
+
     def initial_path(self):
         path, self._initial = self._initial, None
         return path

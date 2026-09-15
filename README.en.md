@@ -48,6 +48,8 @@ The executable is not signed. On first launch Windows may display a SmartScreen 
 - Drag and drop a file onto the application window or onto the `SwaggerCompiler.exe` icon.
 - The recent files list on the start screen.
 
+Clicking the application name in the toolbar closes the file and returns to the start screen.
+
 When another program modifies the file, the page is updated automatically.
 
 ### Saving

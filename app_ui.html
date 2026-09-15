@@ -33,7 +33,8 @@ button{font-family:inherit}
 
 /* toolbar */
 .bar{display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--line);min-width:0}
-.brand{display:flex;align-items:center;gap:8px;font-weight:600;white-space:nowrap;padding-right:4px}
+.brand{display:flex;align-items:center;gap:8px;font:600 14px/1.5 var(--font-sans);color:var(--ink);white-space:nowrap;background:none;border:0;border-radius:6px;padding:4px 8px;margin:-4px 0 -4px -8px;cursor:pointer}
+.brand:hover{background:var(--surface-2)}
 .brand svg{width:22px;height:22px;flex:none}
 .file{display:flex;align-items:center;gap:10px;min-width:0;flex:1;padding-left:12px;border-left:1px solid var(--line);height:28px}
 .file-text{display:grid;min-width:0;line-height:1.25}
@@ -165,10 +166,10 @@ iframe{border:0;width:100%;height:100%;display:block;background:var(--bg)}
 </head>
 <body>
 <header class="bar">
-  <div class="brand">
+  <button type="button" class="brand" id="btn-home" title="На главный экран">
     <svg viewBox="0 0 64 64" aria-hidden="true"><defs><clipPath id="logo-clip"><rect x="3" y="3" width="58" height="58" rx="13"/></clipPath></defs><g clip-path="url(#logo-clip)"><rect x="3" y="3" width="58" height="58" fill="#2A56C6"/><rect x="3" y="45" width="58" height="16" fill="#137A52"/></g><path d="M23 14 13 24.5 23 35M41 14l10 10.5L41 35M35.5 11.5l-7 26" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><rect x="18" y="51" width="8" height="3.5" rx="1.75" fill="#fff"/><rect x="28" y="51" width="8" height="3.5" rx="1.75" fill="#fff"/><rect x="38" y="51" width="8" height="3.5" rx="1.75" fill="#fff"/></svg>
     Swagger Compiler
-  </div>
+  </button>
   <div class="file">
     <span class="file-empty" id="file-empty">Файл не открыт</span>
     <div class="file-text" id="file-text" hidden>
@@ -885,6 +886,31 @@ document.addEventListener("click", e => { if (!e.target.closest("#save-group")) 
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("save-menu").hidden) { toggleSaveMenu(false); $("btn-save-menu").focus(); } });
 // щелчок внутри страницы не доходит до окна, но уводит фокус
 window.addEventListener("blur", () => toggleSaveMenu(false));
+
+/* ---------- возврат на главный экран по логотипу ---------- */
+async function goHome() {
+  if (state.busy) return;
+  if (state.path && !(await confirmDiscard("Вернуться на главный экран? Несохранённые изменения пропадут."))) return;
+  clearTimeout(renderTimer);
+  renderSeq++;  // ответы уже запущенной пересборки игнорируются
+  exitEdit();
+  toggleSaveMenu(false);
+  await api.close_file();
+  if (state.blobUrl) { URL.revokeObjectURL(state.blobUrl); state.blobUrl = null; }
+  viewer.onload = null;
+  viewer.src = "about:blank";
+  Object.assign(state, { path: null, text: null, savedText: null, isJson: false, lastOk: false, errorLine: null, flashLine: null });
+  $("notice").hidden = true;
+  $("file-name").textContent = "";
+  $("file-path").textContent = "";
+  $("preview").classList.remove("stale");
+  setEditorError(null);
+  setIssues(null);
+  updateDirty();
+  renderRecent();
+  showScreen("welcome");
+}
+$("btn-home").addEventListener("click", goHome);
 
 window.app = {
   openPath: p => openPath(p),
